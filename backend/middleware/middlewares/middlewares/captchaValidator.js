@@ -1,56 +1,87 @@
-// middlewares/captchaValidator.js
+/**
+
+* Scam Shield AI - CAPTCHA Validator Middleware (UPGRADED)
+*
+* Purpose:
+* Verifies CAPTCHA tokens using Google reCAPTCHA
+* to ensure requests are from real humans.
+*
+* Used for:
+* * Scam report submissions
+* * Message checking requests
+* * User-generated inputs
+    */
 
 const axios = require("axios");
 
-/*
-CAPTCHA Validator Middleware
-
-Purpose:
-Verifies CAPTCHA tokens to ensure
-submissions come from real humans.
-
-Used for:
-- Scam report submissions
-- Feedback submissions
-- User registrations
-*/
-
 const captchaValidator = async (req, res, next) => {
-  try {
-    const captchaToken = req.body.captchaToken;
+try {
+// Accept token from multiple sources (API flexibility)
+const captchaToken =
+req.body.captchaToken ||
+req.headers["x-captcha-token"] ||
+req.query.captchaToken;
 
-    if (!captchaToken) {
-      return res.status(400).json({
-        success: false,
-        message: "Captcha token is missing",
-      });
+```
+// 1. Check token exists
+if (!captchaToken) {
+  return res.status(400).json({
+    success: false,
+    message: "CAPTCHA token is required"
+  });
+}
+
+// 2. Check secret key exists (prevents silent deployment failure)
+const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+
+if (!secretKey) {
+  console.error("Missing RECAPTCHA_SECRET_KEY in environment");
+  return res.status(500).json({
+    success: false,
+    message: "Server CAPTCHA configuration error"
+  });
+}
+
+// 3. Google verification (secure POST format)
+const verificationURL = "https://www.google.com/recaptcha/api/siteverify";
+
+const response = await axios.post(
+  verificationURL,
+  null,
+  {
+    params: {
+      secret: secretKey,
+      response: captchaToken
     }
-
-    const secretKey = process.env.RECAPTCHA_SECRET_KEY;
-
-    const verificationURL =
-      `https://www.google.com/recaptcha/api/siteverify` +
-      `?secret=${secretKey}&response=${captchaToken}`;
-
-    const response = await axios.post(verificationURL);
-
-    if (!response.data.success) {
-      return res.status(403).json({
-        success: false,
-        message: "Captcha verification failed",
-      });
-    }
-
-    next();
-
-  } catch (error) {
-    console.error("Captcha validation error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Captcha validation failed",
-    });
   }
+);
+
+const data = response.data;
+
+// 4. Reject invalid CAPTCHA
+if (!data.success) {
+  return res.status(403).json({
+    success: false,
+    message: "CAPTCHA verification failed",
+    errorCodes: data["error-codes"] || []
+  });
+}
+
+// 5. Passed CAPTCHA → continue pipeline
+next();
+```
+
+} catch (error) {
+console.error("CAPTCHA Validator Error:", error.message);
+
+```
+return res.status(500).json({
+  success: false,
+  message: "CAPTCHA validation failed internally"
+});
+```
+
+}
 };
 
 module.exports = captchaValidator;
