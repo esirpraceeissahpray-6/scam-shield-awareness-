@@ -1,19 +1,34 @@
-// database.js
+// config/database.js
 
 const mongoose = require("mongoose");
 
+/*
+Database Connection
+
+Combines:
+- Environment variable support (production-ready)
+- Local fallback (development)
+*/
+
 const connectDB = async () => {
-    try {
-        await mongoose.connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/scamshield");
+  try {
 
-        console.log("Database Connected Successfully");
+    const mongoURI =
+      process.env.MONGO_URI || "mongodb://127.0.0.1:27017/scamshield";
 
-    } catch (error) {
+    await mongoose.connect(mongoURI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
 
-        console.error("Database Connection Failed");
+    console.log("✅ MongoDB Connected Successfully");
 
-        process.exit(1);
-    }
+  } catch (error) {
+
+    console.error("❌ Database Connection Failed:", error.message);
+
+    process.exit(1);
+  }
 };
 
 module.exports = connectDB;
