@@ -2,42 +2,67 @@
 
 const express = require("express");
 const cors = require("cors");
-const mongoose = require("mongoose");
 
-// Import Database
+/*
+Import Database
+*/
 const connectDB = require("./config/database");
 
-// Import Routes
-const scamRoutes = require("./routes/scamRoutes");
-const checkerRoutes = require("./routes/checkerRoutes");
+/*
+Import Routes
+*/
+const reportRoutes = require("./routes/reportRoutes");
+// keep these ONLY if they exist
+// const scamRoutes = require("./routes/scamRoutes");
+// const checkerRoutes = require("./routes/checkerRoutes");
 
-// Import Middleware
-const errorHandler = require("./middleware/errorHandler");
+/*
+Import Middleware (optional if exists)
+*/
+// const errorHandler = require("./middlewares/errorHandler");
 
 const app = express();
 
-// Middleware
+/*
+Middleware
+*/
 app.use(cors());
 app.use(express.json());
 
-// Connect Database
+/*
+Connect Database
+*/
 connectDB();
 
-// Routes
-app.use("/api/scams", scamRoutes);
-app.use("/api/check", checkerRoutes);
+/*
+Routes
+*/
+app.use("/api/reports", reportRoutes);
 
-// Test Route
+// Only use these if files exist
+// app.use("/api/scams", scamRoutes);
+// app.use("/api/check", checkerRoutes);
+
+/*
+Test Route
+*/
 app.get("/", (req, res) => {
-    res.send("Scam Shield AI Backend Running...");
+  res.send("🚀 Scam Shield Backend Running");
 });
 
-// Error Middleware
-app.use(errorHandler);
+/*
+Error Middleware (optional)
+*/
+// app.use(errorHandler);
 
-// Start Server
+/*
+Server Port
+*/
 const PORT = process.env.PORT || 5000;
 
+/*
+Start Server
+*/
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
