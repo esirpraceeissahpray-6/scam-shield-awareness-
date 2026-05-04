@@ -1,49 +1,100 @@
-// controllers/reportController.js
+/**
 
-const ScamReport = require("../models/ScamReport");
+* Scam Shield AI - Scam Report Controller (FULL CONNECTED PIPELINE)
+  */
 
-/*
-Submit Scam Report
-*/
+const riskScoring = require("../utils/riskScoring");
+const threatNormalizer = require("../utils/threatNormalizer");
 
-exports.submitReport = async (req, res) => {
-  try {
+const heatmapEngine = require("../engines/heatmapEngine");
+const fraudNetworkEngine = require("../engines/fraudNetworkEngine");
+const trustScoreEngine = require("../engines/trustScoreEngine");
 
-    const { message, category, platform, location } = req.body;
+const dataLabelingEngine = require("../engines/dataLabelingEngine");
+const datasetBuilder = require("../engines/datasetBuilder");
+const dataQualityEngine = require("../engines/dataQualityEngine");
 
-    let riskScore = 0;
+const scamReportController = async (req, res) => {
+try {
+const { message, location, userId } = req.body;
 
-    if (message) {
-      const lower = message.toLowerCase();
+```
+if (!message) {
+  return res.status(400).json({
+    success: false,
+    message: "Message is required"
+  });
+}
 
-      if (lower.includes("urgent")) riskScore += 10;
-      if (lower.includes("bank")) riskScore += 10;
-      if (lower.includes("password")) riskScore += 10;
-      if (lower.includes("click")) riskScore += 10;
-    }
+const user = userId || "anonymous";
 
-    const report = new ScamReport({
-      message,
-      category: category || "other",
-      platform: platform || "unknown",
-      location: location || "unknown",
-      riskScore
-    });
+// 1. Normalize input
+const normalized = threatNormalizer(message);
 
-    await report.save();
+if (!normalized.safeForScoring) {
+  return res.status(400).json({
+    success: false,
+    message: "Suspicious input detected"
+  });
+}
 
-    res.status(201).json({
-      success: true,
-      message: "Report saved",
-      riskScore
-    });
+// 2. Risk scoring
+const analysis = riskScoring(normalized.cleanedMessage);
 
-  } catch (error) {
+// 3. Trust system update
+const trust = trustScoreEngine.registerReport(user);
 
-    res.status(500).json({
-      success: false,
-      message: "Error saving report"
-    });
-
-  }
+// 4. Build base report
+const report = {
+  message: normalized.cleanedMessage,
+  location: location || "unknown",
+  riskScore: analysis.riskScore,
+  scamType: analysis.level,
+  userId: user
 };
+
+// 5. Send to intelligence engines
+heatmapEngine.store(report);
+fraudNetworkEngine.addReport(report);
+
+// 6. DATA ENGINE PIPELINE STARTS HERE
+
+const labeled = dataLabelingEngine.labelData({
+  message: report.message,
+  riskScore: report.riskScore,
+  trustScore: trust.trustScore
+});
+
+const isValid = dataQualityEngine.validate(
+  labeled,
+  trust.trustScore
+);
+
+if (isValid) {
+  datasetBuilder.addData(labeled);
+}
+
+// 7. Response
+return res.status(201).json({
+  success: true,
+  report,
+  analysis,
+  trust,
+  labeledData: labeled
+});
+```
+
+} catch (error) {
+console.error("Controller Error:", error.message);
+
+```
+return res.status(500).json({
+  success: false,
+  message: "Server error"
+});
+```
+
+}
+};
+
+module.exports = scamReportController;
